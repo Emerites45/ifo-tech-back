@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// --- ENUMS ---
+
+enum Role {
+  ADMIN
+  PUBLISHER
+  SUBSCRIBER
+}
+
+enum Category {
+  DEVELOPMENT
+  DESIGN
+  BUSINESS
+  MARKETING
+  MUSIC
+  OTHER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+// --- MODÈLES ---
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(SUBSCRIBER)
+  phoneNumber  String?  @map("phone_number")
+  avatar       String?
+  googleId     String?  @unique
+
+  // Audit
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  publisherProfile PublisherProfile?
+  coursesCreated   Course[]          @relation("CourseAuthor")
+  subscriptions    Subscription[]
+  enrollments      Enrollment[]
+  videoProgress    VideoProgress[]
+  reviews          Review[]
+
+  @@map("users")
+}
+
+model PublisherProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio       String?  @db.Text
+  specialty Category @default(OTHER)
+  website   String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("publisher_profiles")
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  thumbnail   String?
+  category    Category @default(OTHER)
+  isPublished Boolean  @default(false) @map("is_published")
+
+  authorId String @map("author_id")
+  author   User   @relation("CourseAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Audit
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  videos      Video[]
+  enrollments Enrollment[]
+  reviews     Review[]
+
+  @@map("courses")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String             @map("user_id")
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    SubscriptionStatus @default(ACTIVE)
+  startDate DateTime           @default(now()) @map("start_date")
+  endDate   DateTime           @map("end_date") // Géré par l'Admin lors de la création
+  note      String?            @db.Text // Optionnel : récapitulatif du paiement hors-système
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String   @map("course_id")
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+model Video {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+  videoUrl    String  @map("video_url")
+  duration    Int     @default(0)
+  order       Int     @default(0)
+  isFree      Boolean @default(false) @map("is_free") // Accessible même sans abonnement actif
+
+  courseId String @map("course_id")
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  progress VideoProgress[]
+
+  @@map("videos")
+}
+
+model VideoProgress {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId     String   @map("video_id")
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  watchedSec  Int      @default(0) @map("watched_sec")
+  isCompleted Boolean  @default(false) @map("is_completed")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, videoId])
+  @@map("video_progress")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int
+  comment   String?  @db.Text
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String   @map("course_id")
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, courseId])
+  @@map("reviews")
+}
