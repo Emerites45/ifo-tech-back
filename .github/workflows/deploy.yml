@@ -59,8 +59,8 @@ jobs:
           script: |
             set -e
 
-            # Authentification auprès du registre GitHub (avec le mot de passe du token GitHub ou GHCR_PAT)
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Authentification auprès de GHCR sur le VPS via le PAT
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Navigation vers le dossier d'application sous l'utilisateur root
             cd /root/apps/ifo-horizon-tech-backend
@@ -68,7 +68,7 @@ jobs:
             # Téléchargement de la nouvelle image du backend
             docker compose pull backend
 
-            # Redémarrage du backend (PostgreSQL et Redis restent actifs sans interruption)
+            # Redémarrage du backend (PostgreSQL et Redis restent actifs)
             docker compose up -d --remove-orphans
 
             # Nettoyage des anciennes images inutilisées
