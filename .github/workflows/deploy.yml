@@ -2,7 +2,7 @@ name: CI/CD Pipeline Backend - IFO-Horizon Tech
 
 on:
   push:
-    branches: [ master ] # Déclenchement sur push et merge sur la branche master
+    branches: [ master ] # Déclenchement sur push sur la branche master
 
 jobs:
   # -------------------------------------------------------------
@@ -20,6 +20,7 @@ jobs:
 
       - name: 🏷️ [2/5] Génération du nom d'image Docker
         run: |
+          # Conversion du nom du dépôt en minuscules pour Docker
           IMAGE=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_NAME=ghcr.io/$IMAGE" >> $GITHUB_ENV
           echo "=== Nom d'image généré : ghcr.io/$IMAGE ==="
@@ -46,69 +47,64 @@ jobs:
           cache-to: type=gha,mode=max
 
   # -------------------------------------------------------------
-  # 2. Déploiement Verbose sur le VPS via SSH
+  # 2. Déploiement sur le VPS via SSH
   # -------------------------------------------------------------
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 🖥️ Connexion SSH et déploiement détaillé sur le VPS
+      - name: 🖥️ Connexion SSH et déploiement sur le VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          debug: true # Affiche les détails du handshake SSH et des logs de connexion
+          debug: true # Gardé à true pour diagnostiquer les erreurs de clé
           script: |
-            # Activation du mode verbeux (affiche chaque commande exécutée)
+            # Activation du mode "exit on error" et affichage des commandes
             set -ex
 
             echo "================================================"
-            echo "1. Vérification de l'environnement sur le VPS"
+            echo "1. Vérification de l'environnement"
             echo "================================================"
-            echo "Utilisateur courant : $(whoami)"
-            echo "Dossier courant : $(pwd)"
-
+            echo "Utilisateur : $(whoami)"
+            
             TARGET_DIR="/root/apps/ifo-horizon-tech-backend"
+            
             if [ ! -d "$TARGET_DIR" ]; then
-              echo "❌ ERREUR CRITIQUE : Le dossier $TARGET_DIR n'existe pas sur le VPS !"
+              echo "❌ Erreur : Dossier $TARGET_DIR introuvable."
               exit 1
             fi
 
             cd "$TARGET_DIR"
-            echo "📂 Navigation réussie vers : $(pwd)"
 
             if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
-              echo "❌ ERREUR CRITIQUE : Aucun fichier docker-compose.yml trouvé dans $(pwd) !"
+              echo "❌ Erreur : Aucun docker-compose.yml trouvé."
               ls -la
               exit 1
             fi
 
             echo "================================================"
-            echo "2. Authentification auprès du registre Docker (GHCR)"
+            echo "2. Authentification GHCR"
             echo "================================================"
-            if [ -z "${{ secrets.GHCR_PAT }}" ]; then
-              echo "❌ ERREUR CRITIQUE : Le secret GHCR_PAT est vide ou non défini dans GitHub !"
-              exit 1
-            fi
-
+            # Utilisation de la variable de l'acteur GitHub passée dynamiquement
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            echo "✅ Authentification GHCR réussie."
 
             echo "================================================"
-            echo "3. Téléchargement et mise à jour des conteneurs"
+            echo "3. Mise à jour des images et redémarrage"
             echo "================================================"
-            echo "--> Pull de l'image backend..."
+            # On force le pull de la dernière image
             docker compose pull backend
-
-            echo "--> Redémarrage des services..."
+            
+            # Relancement des conteneurs
             docker compose up -d --remove-orphans
 
             echo "================================================"
-            echo "4. Nettoyage et état final"
+            echo "4. Nettoyage"
             echo "================================================"
             docker image prune -f
-            echo "--> Statut des conteneurs en cours d'exécution :"
+            
+            echo "--> État des services :"
             docker compose ps
-            echo "✅ Déploiement terminé avec succès !"
+            echo "✅ Déploiement réussi !"
