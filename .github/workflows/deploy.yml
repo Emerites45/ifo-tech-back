@@ -43,7 +43,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   # -------------------------------------------------------------
-  # 2. Déploiement sur le VPS
+  # 2. Déploiement sur le VPS via clé SSH
   # -------------------------------------------------------------
   deploy:
     needs: build-and-push
@@ -54,7 +54,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
             set -e
