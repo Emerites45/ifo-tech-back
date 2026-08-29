@@ -61,8 +61,8 @@ jobs:
             # Authentification auprès du registre GitHub
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Navigation vers le dossier d'application sur le VPS
-            cd /home/${{ secrets.VPS_USER }}/apps/ifo-horizon-tech-backend
+            # Navigation vers le dossier d'application sous l'utilisateur root
+            cd /root/apps/ifo-horizon-tech-backend
 
             # Téléchargement de la nouvelle image du backend
             docker compose pull backend
