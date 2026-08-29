@@ -2,7 +2,7 @@ name: CI/CD Pipeline Backend - IFO-Horizon Tech
 
 on:
   push:
-    branches: [ master ] # Déclenchement sur push sur la branche master
+    branches: [ master ] # Déclenchement automatique sur la branche master
 
 jobs:
   # -------------------------------------------------------------
@@ -15,27 +15,26 @@ jobs:
       packages: write
 
     steps:
-      - name: 🔍 [1/5] Récupération du code source
+      - name: 🔍 Récupération du code source
         uses: actions/checkout@v4
 
-      - name: 🏷️ [2/5] Génération du nom d'image Docker
+      - name: 🏷️ Génération du nom d'image Docker
         run: |
-          # Conversion du nom du dépôt en minuscules pour Docker
           IMAGE=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
           echo "IMAGE_NAME=ghcr.io/$IMAGE" >> $GITHUB_ENV
-          echo "=== Nom d'image généré : ghcr.io/$IMAGE ==="
+          echo "=== Image cible : ghcr.io/$IMAGE ==="
 
-      - name: 🔑 [3/5] Connexion à GitHub Container Registry (GHCR)
+      - name: 🔑 Connexion à GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🛠️ [4/5] Configuration de Docker Buildx
+      - name: 🛠️ Configuration de Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🚀 [5/5] Build et Push de l'image Docker
+      - name: 🚀 Build et Push de l'image Docker
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -53,58 +52,67 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 🖥️ Connexion SSH et déploiement sur le VPS
+      - name: 🖥️ Connexion SSH et déploiement détaillé sur le VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          debug: true # Gardé à true pour diagnostiquer les erreurs de clé
+          debug: true # Laisse le debug actif pour voir les erreurs de connexion SSH
           script: |
-            # Activation du mode "exit on error" et affichage des commandes
-            set -ex
+            # On arrête le script si une commande échoue
+            set -e
 
             echo "================================================"
-            echo "1. Vérification de l'environnement"
+            echo "1. VERIFICATION DE L'ENVIRONNEMENT"
             echo "================================================"
-            echo "Utilisateur : $(whoami)"
+            echo "Utilisateur courant sur VPS : $(whoami)"
             
             TARGET_DIR="/root/apps/ifo-horizon-tech-backend"
             
             if [ ! -d "$TARGET_DIR" ]; then
-              echo "❌ Erreur : Dossier $TARGET_DIR introuvable."
+              echo "❌ ERREUR : Le dossier cible $TARGET_DIR n'existe pas."
+              echo "Veuillez le créer manuellement une première fois avec le docker-compose.yml."
               exit 1
             fi
 
             cd "$TARGET_DIR"
+            echo "✅ Dossier trouvé : $(pwd)"
 
             if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
-              echo "❌ Erreur : Aucun docker-compose.yml trouvé."
+              echo "❌ ERREUR : Aucun fichier docker-compose.yml trouvé dans $TARGET_DIR."
               ls -la
               exit 1
             fi
 
             echo "================================================"
-            echo "2. Authentification GHCR"
+            echo "2. AUTHENTIFICATION GHCR"
             echo "================================================"
-            # Utilisation de la variable de l'acteur GitHub passée dynamiquement
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            if [ -z "${{ secrets.GHCR_PAT }}" ]; then
+               echo "❌ ERREUR : Le secret GHCR_PAT est vide dans GitHub Secrets."
+               exit 1
+            fi
+
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Échec du docker login"; exit 1; }
+            echo "✅ Authentification réussie."
 
             echo "================================================"
-            echo "3. Mise à jour des images et redémarrage"
+            echo "3. MISE À JOUR ET REDÉMARRAGE"
             echo "================================================"
-            # On force le pull de la dernière image
-            docker compose pull backend
-            
-            # Relancement des conteneurs
-            docker compose up -d --remove-orphans
+            echo "--> Pull de la dernière image..."
+            docker compose pull backend || { echo "❌ Échec du téléchargement de l'image (docker pull)"; exit 1; }
+
+            echo "--> Relancement des services..."
+            docker compose up -d --remove-orphans || { echo "❌ Échec du démarrage des conteneurs"; exit 1; }
 
             echo "================================================"
-            echo "4. Nettoyage"
+            echo "4. NETTOYAGE ET ETAT FINAL"
             echo "================================================"
+            # Supprime les images inutiles pour gagner de la place
             docker image prune -f
             
-            echo "--> État des services :"
+            echo "--> Liste des conteneurs actifs :"
             docker compose ps
-            echo "✅ Déploiement réussi !"
+
+            echo "🚀 DEPLOIEMENT TERMINE AVEC SUCCÈS !"
