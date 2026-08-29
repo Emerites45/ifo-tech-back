@@ -8,10 +8,10 @@ RUN npm ci
 
 COPY . .
 
-# Génère le client Prisma AVANT le build (nécessite le CLI prisma,
-# disponible ici car cette étape installe aussi les devDependencies)
+# Génération des types et du client Prisma
 RUN npx prisma generate
 
+# Build de l'application NestJS
 RUN npm run build
 
 # ---- Étape 2 : image de production (légère) ----
@@ -24,18 +24,17 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
 
+# Copie des fichiers compilés NestJS
 COPY --from=builder /app/dist ./dist
 
-# Récupère le client Prisma déjà généré dans l'étape précédente,
-# sans avoir besoin du CLI prisma (devDependency) en production
+# Copie du client Prisma généré et des binaires du CLI Prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Nécessaire si tu comptes lancer "prisma migrate deploy" au démarrage
-# du conteneur (schema.prisma requis à l'exécution)
+# Copie du schéma Prisma et des migrations pour les exécutions au démarrage
 COPY --from=builder /app/prisma ./prisma
 
-# Adapte le port si ton app NestJS écoute ailleurs (voir main.ts)
 EXPOSE 3000
 
 CMD ["node", "dist/main.js"]
