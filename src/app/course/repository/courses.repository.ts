@@ -7,7 +7,7 @@
 import { Injectable } from '@nestjs/common';
 import { Category, Course, Prisma } from '@prisma/client';
 import { DatabaseService } from 'src/database/database.service';
-
+// correction
 @Injectable()
 export class CoursesRepository {
   constructor(private readonly db: DatabaseService) {}
