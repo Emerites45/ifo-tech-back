@@ -49,13 +49,18 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Connexion SSH au VPS et mise à jour
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          script: |
+      - name: Connexion SSH et déploiement
+  uses: appleboy/ssh-action@v1.0.3
+  with:
+    host: ${{ secrets.VPS_HOST }}
+    username: ${{ secrets.VPS_USERNAME }}
+    password: ${{ secrets.VPS_PASSWORD }}
+    port: 22
+    script: |
+      cd /root/apps/ifo-horizon-tech-backend
+      docker compose pull backend
+      docker compose up -d --remove-orphans
+      docker image prune -f
             set -e
 
             # Authentification auprès du registre GitHub
