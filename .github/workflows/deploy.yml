@@ -50,21 +50,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Connexion SSH et déploiement
-  uses: appleboy/ssh-action@v1.0.3
-  with:
-    host: ${{ secrets.VPS_HOST }}
-    username: ${{ secrets.VPS_USERNAME }}
-    password: ${{ secrets.VPS_PASSWORD }}
-    port: 22
-    script: |
-      cd /root/apps/ifo-horizon-tech-backend
-      docker compose pull backend
-      docker compose up -d --remove-orphans
-      docker image prune -f
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
             set -e
 
-            # Authentification auprès du registre GitHub
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Authentification auprès du registre GitHub (avec le mot de passe du token GitHub ou GHCR_PAT)
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Navigation vers le dossier d'application sous l'utilisateur root
             cd /root/apps/ifo-horizon-tech-backend
