@@ -4,7 +4,9 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+
+# On utilise npm install pour qu'il génère/s'adapte à l'OS Linux Alpine sans bloquer
+RUN npm install
 
 COPY . .
 
@@ -22,17 +24,19 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+
+# Installation des dépendances de prod en s'adaptant à Linux
+RUN npm install --omit=dev
 
 # Copie des fichiers compilés NestJS
 COPY --from=builder /app/dist ./dist
 
-# Copie du client Prisma généré et des binaires du CLI Prisma
+# Copie du client Prisma et du CLI Prisma pour les migrations
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Copie du schéma Prisma et des migrations pour les exécutions au démarrage
+# Copie du schéma et des migrations Prisma
 COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3000
