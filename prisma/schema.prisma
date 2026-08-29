@@ -74,9 +74,15 @@ model Course {
   id          String   @id @default(uuid())
   title       String
   description String   @db.Text
-  thumbnail   String?
+  image       String?  @map("image") // URL / Chemin de l'image stockée (/uploads/images/...)
   category    Category @default(OTHER)
   isPublished Boolean  @default(false) @map("is_published")
+
+  // Nouveaux champs requis par l'interface Frontend
+  lessons     Int      @default(0)
+  duration    String   @default("0h")
+  price       String   @default("0")
+  curriculum  String[] @default([])
 
   authorId String @map("author_id")
   author   User   @relation("CourseAuthor", fields: [authorId], references: [id], onDelete: Cascade)

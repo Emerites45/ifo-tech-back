@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CoursesRepository } from './repository/courses.repository';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
-import { Category, Course } from '@prisma/client';
 import { CacheService } from 'src/common/cache/cache.service';
 import { PaginationPayloadDto, PaginationResponseDto } from 'src/main/apiutils';
+import { Course, Prisma, Category } from '@prisma/client';
 
 @Injectable()
 export class CoursesService {
@@ -14,15 +15,21 @@ export class CoursesService {
     private readonly cacheService: CacheService,
   ) {}
 
-  async create(dto: CreateCourseDto): Promise<Course> {
-    const course = await this.coursesRepository.create({
+  async create(dto: CreateCourseDto, imageUrl?: string): Promise<Course> {
+    const courseData: Prisma.CourseCreateInput = {
       title: dto.title,
       description: dto.description,
-      thumbnail: dto.thumbnail,
+      image: imageUrl,
       category: dto.category ?? 'OTHER',
+      lessons: dto.lessons ?? 0,
+      duration: dto.duration ?? '0h',
+      price: dto.price ?? '0',
+      curriculum: dto.curriculum ?? [],
       isPublished: dto.isPublished ?? false,
       author: { connect: { id: dto.authorId } },
-    });
+    };
+
+    const course = await this.coursesRepository.create(courseData);
     await this.cacheService.delete('courses:list:*');
     return course;
   }

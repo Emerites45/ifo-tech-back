@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
@@ -20,7 +22,9 @@ export class CoursesRepository {
     skip?: number,
     take?: number,
   ): Promise<[Course[], number]> {
+    // Construction de la clause 'where' en excluant les cours supprimés (soft delete)
     const where: Prisma.CourseWhereInput = {
+      deletedAt: null,
       ...(category ? { category } : {}),
       ...(isPublished !== undefined ? { isPublished } : {}),
     };
@@ -44,7 +48,10 @@ export class CoursesRepository {
 
   async findActiveById(id: string): Promise<Course | null> {
     return this.db.extendedClient.course.findFirst({
-      where: { id },
+      where: {
+        id,
+        deletedAt: null, // S'assure de ne pas récupérer un cours supprimé
+      },
       include: {
         author: { select: { id: true, name: true, avatar: true } },
         videos: { orderBy: { order: 'asc' } },
@@ -61,8 +68,12 @@ export class CoursesRepository {
   }
 
   async softDelete(id: string): Promise<Course> {
-    return this.db.extendedClient.course.delete({
+    // Vrai Soft Delete : mise à jour du champ deletedAt au lieu d'une suppression physique
+    return this.db.extendedClient.course.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
   }
 }
