@@ -2,18 +2,14 @@ name: CI/CD Pipeline Backend - IFO-Horizon Tech
 
 on:
   push:
-    branches: [ master ] # Déclenchement automatique sur la branche master
+    branches: [ master ]
 
 jobs:
-  # -------------------------------------------------------------
-  # 1. Build & Push de l'image Docker sur GHCR
-  # -------------------------------------------------------------
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: 🔍 Récupération du code source
         uses: actions/checkout@v4
@@ -44,37 +40,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # -------------------------------------------------------------
-  # 2. Déploiement sur le VPS via SSH
-  # -------------------------------------------------------------
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: 🖥️ Connexion SSH et déploiement détaillé sur le VPS
+      - name: 🖥️ Connexion SSH et déploiement
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }} # <--- CORRIGÉ : Utilise le secret VPS_USER
+          username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           timeout: 60s
-          debug: true 
           script: |
-            # Arrêter le script si une commande échoue
             set -e
 
             echo "================================================"
             echo "1. VERIFICATION DE L'ENVIRONNEMENT"
             echo "================================================"
-            echo "Utilisateur courant sur VPS : $(whoami)"
-            
-            # NOTE : Si VPS_USER n'est pas "root", assurez-vous que cet utilisateur 
-            # a les droits d'accès au dossier /root/apps/ ou changez le chemin.
             TARGET_DIR="/root/apps/ifo-horizon-tech-backend"
             
             if [ ! -d "$TARGET_DIR" ]; then
-              echo "❌ ERREUR : Le dossier cible $TARGET_DIR n'existe pas."
+              echo "❌ ERREUR : Le dossier $TARGET_DIR n'existe pas."
               exit 1
             fi
 
@@ -88,16 +75,19 @@ jobs:
             echo "================================================"
             echo "3. MISE À JOUR ET REDÉMARRAGE"
             echo "================================================"
-            echo "--> Pull de l'image backend..."
+            # On force l'arrêt pour libérer le port 3000 (ou l'ancien port)
+            docker compose down --remove-orphans
+
+            echo "--> Pull de la dernière image..."
             docker compose pull backend
 
-            echo "--> Relancement des services..."
-            docker compose up -d --remove-orphans
+            echo "--> Relancement des services (Recreate)..."
+            # --force-recreate garantit que le nouveau PORT du .env est bien pris en compte
+            docker compose up -d --force-recreate
 
             echo "================================================"
             echo "4. NETTOYAGE ET ETAT FINAL"
             echo "================================================"
             docker image prune -f
+            echo "🚀 DEPLOIEMENT TERMINE AVEC SUCCÈS sur le port $(grep PORT .env | cut -d '=' -f2)"
             docker compose ps
-
-            echo "🚀 DEPLOIEMENT TERMINE AVEC SUCCÈS !"
